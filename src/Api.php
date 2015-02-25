@@ -7,6 +7,10 @@ use yii\base\Component;
 use yii\base\InvalidConfigException;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Url;
+use yii\helpers\VarDumper;
+use yii\web\ForbiddenHttpException;
+use yii\web\HttpException;
+use yiidreamteam\platron\events\GatewayEvent;
 
 /**
  * Class Api
@@ -17,6 +21,10 @@ class Api extends Component
 {
     const URL_BASE = 'http://www.platron.ru';
     const URL_INIT_PAYMENT = 'init_payment.php';
+
+    const STATUS_OK = 'ok';
+    const STATUS_ERROR = 'error';
+    const STATUS_REJECTED = 'rejected';
 
     private $client = null;
     private $authParams = [];
@@ -54,18 +62,45 @@ class Api extends Component
     public $siteReturnUrl;
 
     /**
+     * @param array $data
+     * @return bool
+     * @throws HttpException
+     * @throws \yii\db\Exception
+     */
+    public function processResult($data)
+    {
+        if (!$this->checkHash($data))
+            throw new ForbiddenHttpException('Hash error');
+
+        $event = new GatewayEvent(['gatewayData' => $data]);
+
+        $this->trigger(GatewayEvent::EVENT_PAYMENT_REQUEST, $event);
+        if (!$event->handled)
+            throw new HttpException(503, 'Error processing request');
+
+        $transaction = \Yii::$app->getDb()->beginTransaction();
+        try {
+            $this->trigger(GatewayEvent::EVENT_PAYMENT_SUCCESS, $event);
+            $transaction->commit();
+        } catch (\Exception $e) {
+            $transaction->rollback();
+            \Yii::error('Payment processing error: ' . $e->getMessage(), 'Platron');
+            throw new HttpException(503, 'Error processing request');
+        }
+
+        return true;
+    }
+
+    /**
      * @inheritdoc
      */
     public function init()
     {
-        if ($this->accountId)
+        if (!$this->accountId)
             throw new InvalidConfigException('accountId required.');
 
         if (!$this->secretKey)
             throw new InvalidConfigException('secretKey required.');
-
-        if (!$this->accountPassword)
-            throw new InvalidConfigException('accountPassword required.');
     }
 
     /**
@@ -81,17 +116,31 @@ class Api extends Component
         return $this->client;
     }
 
+
     /**
      * @param $script
      * @param array $params
+     * @return \SimpleXMLElement
      * @throws \Exception
      */
-    public function call($script, $params = [])
+    private function call($script, $params = [])
     {
         try {
-            $response = $this->getClient()->post($script, ['body' => $this->prepareParams($params, $script)]);
-            var_dump($response);
-            exit;
+            $response = $this->getClient()->post($script, ['body' => $this->prepareParams($script, $params)]);
+
+            if ($response->getStatusCode() != 200)
+                throw new HttpException(503, 'Api http error: ' . $response->getStatusCode(), $response->getStatusCode());
+
+            $xml = $response->xml();
+
+            // Handle request errors
+            if((string)ArrayHelper::getValue($xml, 'pg_status') != static::STATUS_OK) {
+                $errorCode = (int)ArrayHelper::getValue($xml, 'pg_error_code');
+                $errorDescription = (string)ArrayHelper::getValue($xml, 'pg_error_description');
+                throw new \Exception(static::getErrorCodeLabel($errorCode) . " : " . $errorDescription);
+            }
+
+            return $xml;
         } catch (\Exception $e) {
             throw $e;
         }
@@ -115,10 +164,10 @@ class Api extends Component
      * @param $amount
      * @throws \Exception
      */
-    public function redirectToPayment($invoiceId, $amount)
+    public function redirectToPayment($invoiceId, $amount, $description)
     {
         try {
-            $url = $this->getPaymentUrl($invoiceId, $amount);
+            $url = $this->getPaymentUrl($invoiceId, $amount, $description);
             \Yii::$app->response->redirect($url)->send();
         } catch (\Exception $e) {
             throw $e;
@@ -130,11 +179,11 @@ class Api extends Component
      * @param $amount
      * @return bool
      */
-    private function getPaymentUrl($invoiceId, $amount)
+    public function getPaymentUrl($invoiceId, $amount, $description)
     {
         $defaultParams = [
             'pg_merchant_id' => $this->accountId, //*
-            'pg_description' => '', //*
+            'pg_description' => $description, //*
             'pg_amount' => number_format($amount, 2, '.', ''), //*
             'pg_salt' => \Yii::$app->getSecurity()->generateRandomString(), // *
             'pg_order_id' => $invoiceId,
@@ -164,6 +213,8 @@ class Api extends Component
             'pg_testing_mode' => $this->testMode,
         ];
 
+        $response = $this->call(static::URL_INIT_PAYMENT, $defaultParams);
+
         return false;
     }
 
@@ -175,7 +226,7 @@ class Api extends Component
      */
     protected function generateSig($script, $params)
     {
-        if ($script)
+        if (!$script)
             throw new \BadMethodCallException('Unknown request url');
 
         ksort($params);
