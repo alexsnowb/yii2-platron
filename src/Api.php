@@ -7,7 +7,6 @@ use yii\base\Component;
 use yii\base\InvalidConfigException;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Url;
-use yii\helpers\VarDumper;
 use yii\web\ForbiddenHttpException;
 use yii\web\HttpException;
 use yiidreamteam\platron\events\GatewayEvent;
@@ -27,7 +26,6 @@ class Api extends Component
     const STATUS_REJECTED = 'rejected';
 
     private $client = null;
-    private $authParams = [];
 
     /** @var string Account ID */
     public $accountId;
@@ -116,7 +114,6 @@ class Api extends Component
         return $this->client;
     }
 
-
     /**
      * @param $script
      * @param array $params
@@ -134,7 +131,7 @@ class Api extends Component
             $xml = $response->xml();
 
             // Handle request errors
-            if((string)ArrayHelper::getValue($xml, 'pg_status') != static::STATUS_OK) {
+            if ((string)ArrayHelper::getValue($xml, 'pg_status') != static::STATUS_OK) {
                 $errorCode = (int)ArrayHelper::getValue($xml, 'pg_error_code');
                 $errorDescription = (string)ArrayHelper::getValue($xml, 'pg_error_description');
                 throw new \Exception(static::getErrorCodeLabel($errorCode) . " : " . $errorDescription);
@@ -162,6 +159,7 @@ class Api extends Component
     /**
      * @param $invoiceId
      * @param $amount
+     * @param $description
      * @throws \Exception
      */
     public function redirectToPayment($invoiceId, $amount, $description)
@@ -177,9 +175,10 @@ class Api extends Component
     /**
      * @param $invoiceId
      * @param $amount
+     * @param $description
      * @return bool
      */
-    public function getPaymentUrl($invoiceId, $amount, $description)
+    private function getPaymentUrl($invoiceId, $amount, $description)
     {
         $defaultParams = [
             'pg_merchant_id' => $this->accountId, //*
@@ -215,7 +214,7 @@ class Api extends Component
 
         $response = $this->call(static::URL_INIT_PAYMENT, $defaultParams);
 
-        return false;
+        return (string)ArrayHelper::getValue($response, 'pg_redirect_url');
     }
 
     /**
@@ -234,6 +233,27 @@ class Api extends Component
         array_push($params, $this->secretKey);
 
         return md5(implode(';', $params));
+    }
+
+    /**
+     * @param $url
+     * @return string
+     */
+    protected function normalizeSigUrlName($url)
+    {
+        return basename($url);
+    }
+
+    /**
+     * @param $data
+     * @return bool
+     */
+    protected function checkHash($data)
+    {
+        $scriptName = basename(Url::to($this->resultUrl, true));
+        $sig = (string)ArrayHelper::remove($data, 'pg_sig');
+
+        return $sig === $this->generateSig($scriptName, $data);
     }
 
     /**
