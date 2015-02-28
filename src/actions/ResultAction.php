@@ -38,6 +38,7 @@ class ResultAction extends Action
     {
         try {
             $this->api->processResult(\Yii::$app->request->post());
+            $this->api->
         } catch (\Exception $e) {
             if (!$this->silent)
                 throw $e;

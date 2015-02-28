@@ -5,10 +5,13 @@ namespace yiidreamteam\platron;
 use GuzzleHttp\Client;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
+use yii\base\InvalidParamException;
+use yii\base\InvalidValueException;
 use yii\helpers\ArrayHelper;
 use yii\helpers\Url;
 use yii\web\ForbiddenHttpException;
 use yii\web\HttpException;
+use yii\web\Response;
 use yiidreamteam\platron\events\GatewayEvent;
 
 /**
@@ -67,7 +70,9 @@ class Api extends Component
      */
     public function processResult($data)
     {
-        if (!$this->checkHash($data))
+        $url = $this->resultUrl ? Url::to($this->resultUrl) : \Yii::$app->request->getUrl();
+
+        if (!$this->checkHash($url, $data))
             throw new ForbiddenHttpException('Hash error');
 
         $event = new GatewayEvent(['gatewayData' => $data]);
@@ -225,35 +230,40 @@ class Api extends Component
      */
     protected function generateSig($script, $params)
     {
-        if (!$script)
-            throw new \BadMethodCallException('Unknown request url');
+        if(empty($script))
+            throw new \LogicException('Script name cannot be empty');
 
         ksort($params);
-        array_unshift($params, $script);
+        array_unshift($params, basename($script));
         array_push($params, $this->secretKey);
 
         return md5(implode(';', $params));
     }
 
     /**
-     * @param $url
-     * @return string
+     * @param $data
+     * @param $scriptName
+     * @return bool
      */
-    protected function normalizeSigUrlName($url)
+    protected function checkHash($scriptName, $data)
     {
-        return basename($url);
+        $sig = (string)ArrayHelper::remove($data, 'pg_sig');
+        return $sig === $this->generateSig($scriptName, $data);
     }
 
     /**
      * @param $data
-     * @return bool
      */
-    protected function checkHash($data)
+    private function sendXlmResponse($data)
     {
-        $scriptName = basename(Url::to($this->resultUrl, true));
-        $sig = (string)ArrayHelper::remove($data, 'pg_sig');
-
-        return $sig === $this->generateSig($scriptName, $data);
+        \Yii::$app->response->format = Response::FORMAT_XML;
+        \Yii::$app->response->data = $data;
+        $xml->addChild('pg_salt', $arrParams['pg_salt']); // в ответе необходимо указывать тот же pg_salt, что и в запросе
+        $xml->addChild('pg_status', 'ok');
+        $xml->addChild('pg_description', "Оплата принята");
+        $xml->addChild('pg_sig', PG_Signature::makeXML($thisScriptName, $xml, $MERCHANT_SECRET_KEY));
+        header('Content-type: text/xml');
+        print $xml->asXML();
     }
 
     /**
