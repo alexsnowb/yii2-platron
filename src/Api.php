@@ -23,6 +23,7 @@ class Api extends Component
 {
     const URL_BASE = 'http://www.platron.ru';
     const URL_INIT_PAYMENT = 'init_payment.php';
+    const URL_PS_LIST = 'ps_list.php';
 
     const STATUS_OK = 'ok';
     const STATUS_ERROR = 'error';
@@ -339,6 +340,26 @@ class Api extends Component
         ];
 
         return ArrayHelper::getValue($labels, $code, null);
+    }
+
+    /**
+     * @param $amount
+     * @return \SimpleXMLElement
+     * @throws \Exception
+     */
+    public function getPaymentSystemList($amount)
+    {
+        $defaultParams = [
+            'pg_merchant_id' => $this->accountId, //*
+            'pg_amount' => number_format($amount, 2, '.', ''), //*
+            'pg_salt' => \Yii::$app->getSecurity()->generateRandomString(), // *
+            'pg_currency' => $this->currency,
+            'pg_testing_mode' => $this->testMode
+        ];
+
+        $response = $this->call(static::URL_PS_LIST, $defaultParams);
+
+        return $response;
     }
 
 }
