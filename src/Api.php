@@ -137,7 +137,7 @@ class Api extends Component
      * @return \SimpleXMLElement
      * @throws \Exception
      */
-    private function call($script, $params = [])
+    public function call($script, $params = [])
     {
         try {
             $response = $this->getClient()->post($script, ['body' => $this->prepareParams($script, $params)]);
