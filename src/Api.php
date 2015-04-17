@@ -167,7 +167,7 @@ class Api extends Component
      * @param $params
      * @return array
      */
-    private function prepareParams($script, $params)
+    public function prepareParams($script, $params)
     {
         $params = array_filter($params);
         $params['pg_sig'] = $this->generateSig($script, $params);
@@ -243,7 +243,7 @@ class Api extends Component
      * @param $script
      * @return string
      */
-    protected function generateSig($script, $params)
+    public function generateSig($script, $params)
     {
         if(empty($script))
             throw new \LogicException('Script name cannot be empty');
@@ -260,9 +260,11 @@ class Api extends Component
      * @param $scriptName
      * @return bool
      */
-    protected function checkHash($scriptName, $data)
+    public function checkHash($scriptName, $data)
     {
+        ksort($data);
         $sig = (string)ArrayHelper::remove($data, 'pg_sig');
+        $trueSig = $this->generateSig($scriptName, $data);
         return $sig === $this->generateSig($scriptName, $data);
     }
 
@@ -355,9 +357,9 @@ class Api extends Component
     public function getPaymentSystemList($amount)
     {
         $defaultParams = [
-            'pg_merchant_id' => $this->accountId, //*
-            'pg_amount' => number_format($amount, 2, '.', ''), //*
-            'pg_salt' => \Yii::$app->getSecurity()->generateRandomString(), // *
+            'pg_merchant_id' => $this->accountId,
+            'pg_amount' => number_format($amount, 2, '.', ''),
+            'pg_salt' => \Yii::$app->getSecurity()->generateRandomString(),
             'pg_currency' => $this->currency,
             'pg_testing_mode' => $this->testMode
         ];
