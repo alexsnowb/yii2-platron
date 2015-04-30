@@ -45,6 +45,10 @@ class Api extends Component
     public $requestMethod = "POST";
     /** @var string Default response(platron->merchant) method */
     public $responseMethod = "AUTOPOST";
+    /** @var string Default response(platron->site) method */
+    public $successUrlMethod = "AUTOGET";
+    /** @var string Default response(platron->site) method */
+    public $failureUrlMethod = "AUTOGET";
     /** @var string Possible values: RUR, USD, EUR */
     public $currency = 'RUR';
     /** @var string */
@@ -214,8 +218,8 @@ class Api extends Component
             'pg_failure_url' => $this->failureUrl ? Url::to($this->failureUrl, true) : null,
             'pg_site_url' => $this->siteReturnUrl ? Url::to($this->siteReturnUrl, true) : null,
             'pg_request_method' => $this->requestMethod ?: null,
-            'pg_success_url_method' => $this->responseMethod ?: null,
-            'pg_failure_url_method' => $this->responseMethod ?: null,
+            'pg_success_url_method' => $this->successUrlMethod ?: null,
+            'pg_failure_url_method' => $this->failureUrlMethod ?: null,
             'pg_state_url' => $this->stateUrl ? Url::to($this->stateUrl, true) : null,
             'pg_state_url_method' => $this->responseMethod ?: null,
             'pg_payment_system' => $system,
