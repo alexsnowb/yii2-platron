@@ -13,6 +13,7 @@ use yii\web\ForbiddenHttpException;
 use yii\web\HttpException;
 use yii\web\Response;
 use yiidreamteam\platron\events\GatewayEvent;
+use app\models\GelfLog;
 
 /**
  * Class Api
@@ -175,6 +176,10 @@ class Api extends Component
     {
         $params = array_filter($params);
         $params['pg_sig'] = $this->generateSig($script, $params);
+
+        $log = new GelfLog();
+        $log->fullMessage = "Response: ".json_encode($params);
+        $log->log("info", "platron");
 
         return $params;
     }
