@@ -26,6 +26,7 @@ class Api extends Component
     const URL_INIT_PAYMENT = 'init_payment.php';
     const URL_MAKE_PAYMENT = 'payment.php';
     const URL_PS_LIST = 'ps_list.php';
+    const URL_GET_STATUS = 'get_status.php';
 
     const STATUS_OK = 'ok';
     const STATUS_ERROR = 'error';
@@ -374,6 +375,25 @@ class Api extends Component
         ];
 
         $response = $this->call(static::URL_PS_LIST, $defaultParams);
+
+        return $response;
+    }
+
+    /**
+     * @param $amount
+     * @return \SimpleXMLElement
+     * @throws \Exception
+     */
+    public function getPaymentStatus($id)
+    {
+        $defaultParams = [
+            'pg_merchant_id' => $this->accountId,
+            'pg_payment_id' => $id,
+            'pg_salt' => \Yii::$app->getSecurity()->generateRandomString(),
+            'pg_testing_mode' => $this->testMode
+        ];
+
+        $response = $this->call(static::URL_GET_STATUS, $defaultParams);
 
         return $response;
     }
