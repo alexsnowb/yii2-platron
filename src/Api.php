@@ -8,12 +8,14 @@ use yii\base\InvalidConfigException;
 use yii\base\InvalidParamException;
 use yii\base\InvalidValueException;
 use yii\helpers\ArrayHelper;
+use yii\helpers\Json;
 use yii\helpers\Url;
 use yii\web\ForbiddenHttpException;
 use yii\web\HttpException;
 use yii\web\Response;
 use yiidreamteam\platron\events\GatewayEvent;
 use app\models\GelfLog;
+use app\components\log\Log;
 
 /**
  * Class Api
@@ -89,8 +91,10 @@ class Api extends Component
             'pg_description' => 'Оплата не принята',
         ];
 
-        if (!$this->checkHash($url, $data))
+        if (!$this->checkHash($url, $data)) {
+            \Yii::info([Json::encode($data), strtolower("platron_api_check_hash_error"), Log::FORMAT_DEV], 'platron');
             throw new ForbiddenHttpException('Hash error');
+        }
 
         $event = new GatewayEvent(['gatewayData' => $data]);
 
@@ -103,10 +107,11 @@ class Api extends Component
                     'pg_status' => static::STATUS_OK,
                     'pg_description' => 'Оплата принята'
                 ];
+                \Yii::info([Json::encode($data), strtolower("platron_api_payment_accept"), Log::FORMAT_DEV], 'platron');
                 $transaction->commit();
             } catch (\Exception $e) {
                 $transaction->rollback();
-                \Yii::error('Payment processing error: ' . $e->getMessage(), 'Platron');
+                \Yii::error(['Payment processing error: ' . $e->getMessage(), strtolower("platron_api_error_processing"), Log::FORMAT_DEV], 'platron');
                 throw new HttpException(503, 'Error processing request');
             }
         }
@@ -148,10 +153,13 @@ class Api extends Component
     public function call($script, $params = [])
     {
         try {
-            $response = $this->getClient()->post($script, ['body' => $this->prepareParams($script, $params)]);
+            /** @var \GuzzleHttp\Psr7\Response $response */
+            $response = $this->getClient()->post(self::URL_BASE.'/'.$script, ['body' => $this->prepareParams($script, $params)]);
 
-            if ($response->getStatusCode() != 200)
+            if ($response->getStatusCode() != 200) {
+                \Yii::error([Json::encode($response), strtolower("platron_api_http_response_error"), Log::FORMAT_DEV], 'platron');
                 throw new HttpException(503, 'Api http error: ' . $response->getStatusCode(), $response->getStatusCode());
+            }
 
             $xml = $response->xml();
 
@@ -159,6 +167,7 @@ class Api extends Component
             if ((string)ArrayHelper::getValue($xml, 'pg_status') != static::STATUS_OK) {
                 $errorCode = (int)ArrayHelper::getValue($xml, 'pg_error_code');
                 $errorDescription = (string)ArrayHelper::getValue($xml, 'pg_error_description');
+                \Yii::error([static::getErrorCodeLabel($errorCode) . " : " . $errorDescription, strtolower("platron_api_response_error"), Log::FORMAT_DEV], 'platron');
                 throw new \Exception(static::getErrorCodeLabel($errorCode) . " : " . $errorDescription);
             }
 
@@ -177,11 +186,7 @@ class Api extends Component
     {
         $params = array_filter($params);
         $params['pg_sig'] = $this->generateSig($script, $params);
-
-        $log = new GelfLog();
-        $log->fullMessage = "Response: ".json_encode($params);
-        $log->log("info", "platron");
-
+        \Yii::info([Json::encode($params), strtolower("platron_api_response"), Log::FORMAT_DEV], 'platron');
         return $params;
     }
 
@@ -194,6 +199,7 @@ class Api extends Component
         try {
             \Yii::$app->response->redirect($url)->send();
         } catch (\Exception $e) {
+            \Yii::info([Json::encode($e), strtolower("platron_api_redirectToPayment"), Log::FORMAT_DEV], 'platron');
             throw $e;
         }
     }
