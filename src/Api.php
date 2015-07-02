@@ -44,7 +44,7 @@ class Api extends Component
     /** @var string Secret key */
     public $secretKey;
     /** @var bool Merchant test mode */
-    public $testMode = true;
+    public $testMode = false;
     /** @var string Default API request(merchant->platron) method */
     public $requestMethod = "POST";
     /** @var string Default response(platron->merchant) method */
