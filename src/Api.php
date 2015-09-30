@@ -29,6 +29,7 @@ class Api extends Component
     const URL_MAKE_PAYMENT = 'payment.php';
     const URL_PS_LIST = 'ps_list.php';
     const URL_GET_STATUS = 'get_status.php';
+    const URL_REVOKE = 'revoke.php';
 
     const STATUS_OK = 'ok';
     const STATUS_ERROR = 'error';
@@ -400,6 +401,27 @@ class Api extends Component
         ];
 
         $response = $this->call(static::URL_GET_STATUS, $defaultParams);
+
+        return $response;
+    }
+
+    /**
+     * @param $id int PS transaction ID
+     * @param $amount float Amount to refund
+     * @return \SimpleXMLElement
+     * @throws \Exception
+     */
+    public function refundTransaction($id, $amount)
+    {
+        $defaultParams = [
+            'pg_merchant_id' => $this->accountId,
+            'pg_payment_id' => $id,
+            'pg_refund_amount' => ceil($amount),
+            'pg_salt' => \Yii::$app->getSecurity()->generateRandomString(),
+            'pg_testing_mode' => $this->testMode
+        ];
+
+        $response = $this->call(static::URL_REVOKE, $defaultParams);
 
         return $response;
     }
