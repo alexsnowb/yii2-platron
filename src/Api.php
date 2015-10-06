@@ -416,7 +416,7 @@ class Api extends Component
         $defaultParams = [
             'pg_merchant_id' => $this->accountId,
             'pg_payment_id' => $id,
-            'pg_refund_amount' => ceil($amount),
+            'pg_refund_amount' => floatval($amount),
             'pg_salt' => \Yii::$app->getSecurity()->generateRandomString(),
             'pg_testing_mode' => $this->testMode
         ];
