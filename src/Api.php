@@ -215,7 +215,7 @@ class Api extends Component
      * @return \SimpleXMLElement
      * @throws \Exception
      */
-    public function getPaymentUrl($invoiceId, $amount, $description, $system = null, $phone = null, $email = null)
+    public function getPaymentUrl($invoiceId, $amount, $description, $system = null, $phone = null, $email = null, $cancelUrl = null)
     {
         $defaultParams = [
             'pg_merchant_id' => $this->accountId, //*
@@ -247,6 +247,7 @@ class Api extends Component
 //            'pg_recurring_start' => '',
 //            'pg_recurring_lifetime' => '',
             'pg_testing_mode' => $this->testMode,
+            'cancel_url' => $cancelUrl
         ];
 
         $response = $this->call(static::URL_INIT_PAYMENT, $defaultParams);
