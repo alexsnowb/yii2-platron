@@ -55,7 +55,7 @@ class Api extends Component
     /** @var string Default response(platron->site) method */
     public $failureUrlMethod = "AUTOGET";
     /** @var string Possible values: RUR, USD, EUR */
-    public $currency = 'RUR';
+    public $currency = 'RUB';
     /** @var string */
     public $invoiceClass;
 
