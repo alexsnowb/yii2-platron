@@ -155,14 +155,14 @@ class Api extends Component
     {
         try {
             /** @var \GuzzleHttp\Psr7\Response $response */
-            $response = $this->getClient()->post(self::URL_BASE.'/'.$script, ['body' => $this->prepareParams($script, $params)]);
+            $response = $this->getClient()->post(self::URL_BASE.'/'.$script, ['form_params' => $this->prepareParams($script, $params)]);
 
             if ($response->getStatusCode() != 200) {
                 \Yii::error([Json::encode($response), strtolower("platron_api_http_response_error"), Log::FORMAT_DEV], 'platron');
                 throw new HttpException(503, 'Api http error: ' . $response->getStatusCode(), $response->getStatusCode());
             }
 
-            $xml = $response->xml();
+            $xml = simplexml_load_string( (string) $response->getBody() );
 
             // Handle request errors
             if ((string)ArrayHelper::getValue($xml, 'pg_status') != static::STATUS_OK) {
