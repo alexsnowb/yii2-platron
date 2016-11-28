@@ -212,10 +212,11 @@ class Api extends Component
      * @param null $system
      * @param null $phone
      * @param null $email
+     * @param null $cancelUrl
+     * @param null|int $lifetime
      * @return \SimpleXMLElement
-     * @throws \Exception
      */
-    public function getPaymentUrl($invoiceId, $amount, $description, $system = null, $phone = null, $email = null, $cancelUrl = null)
+    public function getPaymentUrl($invoiceId, $amount, $description, $system = null, $phone = null, $email = null, $cancelUrl = null, $lifetime = null)
     {
         $defaultParams = [
             'pg_merchant_id' => $this->accountId, //*
@@ -236,7 +237,7 @@ class Api extends Component
             'pg_state_url' => $this->stateUrl ? Url::to($this->stateUrl, true) : null,
             'pg_state_url_method' => $this->responseMethod ?: null,
             'pg_payment_system' => $system,
-            'pg_lifetime' => '',
+            'pg_lifetime' => $lifetime,
             'pg_encoding' => '',
             'pg_user_phone' => $phone,
             'pg_user_contact_email' => $email,
