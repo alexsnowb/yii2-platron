@@ -2,6 +2,7 @@
 
 namespace yiidreamteam\platron;
 
+use app\models\backOffice\Booking;
 use GuzzleHttp\Client;
 use yii\base\Component;
 use yii\base\InvalidConfigException;
@@ -30,6 +31,7 @@ class Api extends Component
     const URL_PS_LIST = 'ps_list.php';
     const URL_GET_STATUS = 'get_status.php';
     const URL_REVOKE = 'revoke.php';
+    const URL_RECEIPT = 'receipt.php';
 
     const STATUS_OK = 'ok';
     const STATUS_ERROR = 'error';
@@ -37,6 +39,10 @@ class Api extends Component
 
     const RESULT_ERROR = 0;
     const RESULT_OK = 1;
+
+    const RECEIPT_OPERATION_TYPE_PAYMENT    = 'payment';
+    const RECEIPT_OPERATION_TYPE_REFUND     = 'refund';
+    const RECEIPT_OPERATION_TYPE_MONEYBACK  = 'moneyback';
 
     private $client = null;
 
@@ -154,8 +160,11 @@ class Api extends Component
     public function call($script, $params = [])
     {
         try {
+
+            $params = $this->prepareParams($script, $params);
             /** @var \GuzzleHttp\Psr7\Response $response */
-            $response = $this->getClient()->post(self::URL_BASE.'/'.$script, ['form_params' => $this->prepareParams($script, $params)]);
+            $response = $this->getClient()->post(self::URL_BASE.'/'.$script, ['form_params' => $params]);
+            \Yii::info([Json::encode($response), strtolower("platron_api_http_response"), Log::FORMAT_DEV], 'platron');
 
             if ($response->getStatusCode() != 200) {
                 \Yii::error([Json::encode($response), strtolower("platron_api_http_response_error"), Log::FORMAT_DEV], 'platron');
@@ -179,14 +188,50 @@ class Api extends Component
     }
 
     /**
+     * Returns flat array
+     *
+     * @param array $params
+     * @param string $parentName
+     * @return array
+     */
+    private function makeFlatParamsArray ( $params, $parentName = '' )
+    {
+        $flatParams = array();
+        $i = 0;
+        foreach ( $params as $key => $val ) {
+            $i++;
+            if ( 'pg_sig' === $key)
+                continue;
+
+            /**
+             * Имя делаем вида tag001subtag001
+             * Чтобы можно было потом нормально отсортировать и вложенные узлы не запутались при сортировке
+             */
+            if(is_int($key)){
+                $name = substr($parentName, 0, strlen($parentName) - 3) . sprintf('%03d', $i);
+            }
+            else {
+                $name = $parentName . $key . sprintf('%03d', $i);
+            }
+
+            if (is_array($val) ) {
+                $flatParams = array_merge($flatParams, $this->makeFlatParamsArray($val, $name));
+                continue;
+            }
+            $flatParams += array($name => (string)$val);
+        }
+        return $flatParams;
+    }
+
+    /**
      * @param $script
      * @param $params
      * @return array
      */
     public function prepareParams($script, $params)
     {
-        $params = array_filter($params);
-        $params['pg_sig'] = $this->generateSig($script, $params);
+        $flatParams = $this->makeFlatParamsArray($params);
+        $params['pg_sig'] = $this->generateSig($script, $flatParams);
         \Yii::info([Json::encode($params), strtolower("platron_api_response"), Log::FORMAT_DEV], 'platron');
         return $params;
     }
@@ -267,10 +312,13 @@ class Api extends Component
         if(empty($script))
             throw new \LogicException('Script name cannot be empty');
 
+        if(!empty($params['pg_sig'])){
+            unset($params['pg_sig']);
+        }
+
         ksort($params);
         array_unshift($params, basename($script));
-        array_push($params, $this->secretKey);
-
+        array_push   ($params, $this->secretKey );
         return md5(implode(';', $params));
     }
 
@@ -424,6 +472,27 @@ class Api extends Component
         ];
 
         $response = $this->call(static::URL_REVOKE, $defaultParams);
+
+        return $response;
+    }
+
+    /**
+     * @param $id int Booking UID
+     * @param $items array Items: pg_label, pg_price, pg_quantity, pg_vat
+     * @param string $type
+     * @return \SimpleXMLElement
+     */
+    public function receipt($id, $items, $type = self::RECEIPT_OPERATION_TYPE_PAYMENT)
+    {
+        $defaultParams = [
+            'pg_merchant_id' => $this->accountId,
+            'pg_operation_type' => $type,
+            'pg_order_id' => $id,
+            'pg_salt' => \Yii::$app->getSecurity()->generateRandomString(),
+            'pg_items' => $items
+        ];
+
+        $response = $this->call(static::URL_RECEIPT, $defaultParams);
 
         return $response;
     }
