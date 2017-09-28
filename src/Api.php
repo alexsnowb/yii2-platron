@@ -24,7 +24,7 @@ use app\components\log\Log;
  */
 class Api extends Component
 {
-    const URL_BASE = 'http://www.platron.ru';
+    const URL_BASE = 'https://www.platron.ru';
     const URL_INIT_PAYMENT = 'init_payment.php';
     const URL_MAKE_PAYMENT = 'payment.php';
     const URL_PS_LIST = 'ps_list.php';
